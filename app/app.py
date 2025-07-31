@@ -5,8 +5,9 @@ import numpy as np
 
 # Load trained model
 model = joblib.load("/Users/suvedharam/payroll-prediction/model/rf_model.pkl")
-with open('/Users/suvedharam/payroll-prediction/model/residual_std_log.pkl', 'rb') as f:
-    residual_std = joblib.load(f)
+# Load saved residuals
+residuals_df = pd.read_csv('/Users/suvedharam/payroll-prediction/model/oof_residuals.csv')
+abs_residuals_train = np.abs(residuals_df['residual'])
 
 # List of valid job titles
 job_titles = [
@@ -39,7 +40,9 @@ with st.form("salary_form"):
 
     annual_salary_input = st.number_input("Actual Annual Salary", min_value=0.0, step=100.0)
 
-    threshold = st.selectbox("Anomaly Threshold (log residuals)", [2, 3])
+    # Let user select percentile threshold
+    percentile = st.slider("Select anomaly detection percentile", 90, 99, 99)
+    threshold = np.percentile(abs_residuals_train, percentile)
 
     submitted = st.form_submit_button("Predict and Check Anomaly")
 
@@ -73,18 +76,35 @@ if submitted:
     actual_log_salary = np.log1p(annual_salary_input)
     residual = actual_log_salary - predicted_log_salary
     residual_dollar = annual_salary_input - predicted_salary
-    is_anomaly = is_anomaly = abs(residual) > threshold * residual_std
 
+    abs_residual = abs(residual)
+
+    # Compute bounds in log space and convert to dollars
+    lower_log = predicted_log_salary - threshold
+    upper_log = predicted_log_salary + threshold
+    lower_dollar = np.exp(lower_log)
+    upper_dollar = np.exp(upper_log)
+
+
+
+
+    # Show deviation ---
+    deviation_ratio = annual_salary_input / predicted_salary
+    percent_diff = (deviation_ratio - 1) * 100
+    st.write(f"📉 Deviation from predicted: {percent_diff:+.2f}%")
 
     # --- Output ---
     st.markdown("---")
     st.subheader("📊 Results")
     st.write(f"**Predicted Salary:** ${predicted_salary:,.2f}")
     st.write(f"**Actual Salary:** ${annual_salary_input:,.2f}")
-    st.write(f"Residual (log space): {residual:.2f}")
     st.write(f"Residual (dollar difference): ${residual_dollar:,.2f}")
+    st.write(f"💡 Expected salary range (based on {percentile}th percentile):")
+    st.write(f"📌 ${lower_dollar:,.2f}  -  ${upper_dollar:,.2f}")
+    
 
-    if is_anomaly:
-        st.error("🚨 Anomaly Detected: The salary deviates significantly from the expected range.")
+    # Anomaly detection
+    if abs_residual > threshold:
+        st.error("🚨 Anomaly Detected! Salary is outside expected range.")
     else:
-        st.success("✅ No Anomaly: The salary falls within the expected range.")
+        st.success("✅ Salary is within expected range.")
