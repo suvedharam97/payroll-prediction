@@ -2,11 +2,21 @@ import streamlit as st
 import pandas as pd
 import joblib
 import numpy as np
+import os
+from pathlib import Path
+
+# Get the directory of the current file
+# Base directory: go up from 'app/' to root, then into 'model/'
+base_path = Path(__file__).resolve().parent.parent / "model"
+
+# Define model and residuals paths
+model_path = base_path / "rf_model.pkl"
+residuals_path = base_path / "oof_residuals.csv"
 
 # Load trained model
-model = joblib.load("/Users/suvedharam/payroll-prediction/model/rf_model.pkl")
+model = joblib.load(model_path)
 # Load saved residuals
-residuals_df = pd.read_csv('/Users/suvedharam/payroll-prediction/model/oof_residuals.csv')
+residuals_df = pd.read_csv(residuals_path)
 abs_residuals_train = np.abs(residuals_df['residual'])
 
 # List of valid job titles
